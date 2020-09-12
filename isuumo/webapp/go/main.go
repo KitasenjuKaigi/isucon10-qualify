@@ -37,6 +37,7 @@ var estateSearchCondition EstateSearchCondition
 
 var (
 	estatesCache *cache.Cache
+	chairsCache  *cache.Cache
 )
 
 type InitializeResponse struct {
@@ -272,6 +273,7 @@ func main() {
 
 	// cache instance
 	estatesCache = cache.New(5*time.Minute, 10*time.Minute)
+	chairsCache = cache.New(5*time.Minute, 10*time.Minute)
 
 	// TODO: REMOVE New Relic
 	e.Use(NewRelicWithApplication(*nrApp))
@@ -414,6 +416,7 @@ func postChair(c echo.Context) error {
 			c.Logger().Errorf("failed to insert chair: %v", err)
 			return c.NoContent(http.StatusInternalServerError)
 		}
+		resetLowPricedChair()
 	}
 	if err := tx.Commit(); err != nil {
 		c.Logger().Errorf("failed to commit tx: %v", err)
@@ -600,6 +603,7 @@ func buyChair(c echo.Context) error {
 		c.Echo().Logger.Errorf("chair stock update failed : %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
+	resetLowPricedChair()
 
 	err = tx.Commit()
 	if err != nil {
@@ -614,20 +618,41 @@ func getChairSearchCondition(c echo.Context) error {
 	return c.JSON(http.StatusOK, chairSearchCondition)
 }
 
-func getLowPricedChair(c echo.Context) error {
-	var chairs []Chair
+func resetLowPricedChair() {
+	chairsCache.Delete("lowpriced")
+}
+
+func cacheLowPricedChair(c *cache.Cache) ([]Chair, error) {
+	lowPricedChairs := make([]Chair, 0, Limit)
 	query := `SELECT * FROM chair WHERE stock > 0 ORDER BY price ASC, id ASC LIMIT ?`
-	err := db.Select(&chairs, query, Limit)
+	err := db.Select(&lowPricedChairs, query, Limit)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			c.Logger().Error("getLowPricedChair not found")
+		return nil, errors.WithStack(err)
+	}
+	c.Set("lowpriced", lowPricedChairs, cache.NoExpiration)
+	return lowPricedChairs, nil
+}
+
+func getLowPricedChair(c echo.Context) error {
+	var lowPricedChairs []Chair
+	if chairsCache != nil {
+		if x, found := chairsCache.Get("lowpriced"); found {
+			fmt.Println("hit cache")
+			lowPricedChairs = x.([]Chair)
+		} else {
+			fmt.Println("no cache")
+			var err error
+			lowPricedChairs, err = cacheLowPricedChair(chairsCache)
+			if err != nil {
+				return c.NoContent(http.StatusInternalServerError)
+			}
+		}
+		if len(lowPricedChairs) == 0 {
 			return c.JSON(http.StatusOK, ChairListResponse{[]Chair{}})
 		}
-		c.Logger().Errorf("getLowPricedChair DB execution error : %v", err)
-		return c.NoContent(http.StatusInternalServerError)
+		return c.JSON(http.StatusOK, ChairListResponse{Chairs: lowPricedChairs})
 	}
-
-	return c.JSON(http.StatusOK, ChairListResponse{Chairs: chairs})
+	return c.JSON(http.StatusOK, ChairListResponse{[]Chair{}})
 }
 
 func getEstateDetail(c echo.Context) error {
