@@ -336,12 +336,6 @@ func initialize(c echo.Context) error {
 		}
 	}
 
-	err := cacheLowPricedEstate(estatesCache)
-	if err != nil {
-		c.Logger().Errorf("cache estate error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-
 	return c.JSON(http.StatusOK, InitializeResponse{
 		Language: "go",
 	})
@@ -832,15 +826,15 @@ func searchEstates(c echo.Context) error {
 	return c.JSON(http.StatusOK, res)
 }
 
-func cacheLowPricedEstate(c *cache.Cache) error {
+func cacheLowPricedEstate(c *cache.Cache) ([]Estate, error) {
 	lowPricedEstates := make([]Estate, 0, Limit)
 	query := `SELECT * FROM estate ORDER BY rent ASC, id ASC LIMIT ?`
 	err := db.Select(&lowPricedEstates, query, Limit)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 	c.Set("lowpriced", lowPricedEstates, cache.NoExpiration)
-	return nil
+	return lowPricedEstates, nil
 }
 
 func getLowPricedEstate(c echo.Context) error {
@@ -848,6 +842,12 @@ func getLowPricedEstate(c echo.Context) error {
 	if estatesCache != nil {
 		if x, found := estatesCache.Get("lowpriced"); found {
 			lowPricedEstates = x.([]Estate)
+		} else {
+			var err error
+			lowPricedEstates, err = cacheLowPricedEstate(estatesCache)
+			if err != nil {
+				return c.NoContent(http.StatusInternalServerError)
+			}
 		}
 		if len(lowPricedEstates) == 0 {
 			return c.JSON(http.StatusOK, EstateListResponse{[]Estate{}})
