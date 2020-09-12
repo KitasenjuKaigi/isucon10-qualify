@@ -626,10 +626,8 @@ func getLowPricedChair(c echo.Context) error {
 	var lowPricedChairs []Chair
 	if chairsCache != nil {
 		if x, found := chairsCache.Get("lowpriced"); found {
-			fmt.Println("hit cache")
 			lowPricedChairs = x.([]Chair)
 		} else {
-			fmt.Println("no cache")
 			var err error
 			lowPricedChairs, err = cacheLowPricedChair(chairsCache)
 			if err != nil {
@@ -652,14 +650,21 @@ func getEstateDetail(c echo.Context) error {
 	}
 
 	var estate Estate
-	err = db.Get(&estate, "SELECT * FROM estate WHERE id = ?", id)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			c.Echo().Logger.Infof("getEstateDetail estate id %v not found", id)
-			return c.NoContent(http.StatusNotFound)
+	if x, found := estatesCache.Get(string(id)); found {
+		fmt.Println("hit cache")
+		estate = x.(Estate)
+	} else {
+		fmt.Println("no cache")
+		err = db.Get(&estate, "SELECT * FROM estate WHERE id = ?", id)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				c.Echo().Logger.Infof("getEstateDetail estate id %v not found", id)
+				return c.NoContent(http.StatusNotFound)
+			}
+			c.Echo().Logger.Errorf("Database Execution error : %v", err)
+			return c.NoContent(http.StatusInternalServerError)
 		}
-		c.Echo().Logger.Errorf("Database Execution error : %v", err)
-		return c.NoContent(http.StatusInternalServerError)
+		estatesCache.Set(string(id), estate, cache.NoExpiration)
 	}
 
 	return c.JSON(http.StatusOK, estate)
@@ -984,14 +989,19 @@ func postEstateRequestDocument(c echo.Context) error {
 	}
 
 	estate := Estate{}
-	query := `SELECT * FROM estate WHERE id = ?`
-	err = db.Get(&estate, query, id)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return c.NoContent(http.StatusNotFound)
+	if x, found := estatesCache.Get(string(id)); found {
+		estate = x.(Estate)
+	} else {
+		err = db.Get(&estate, "SELECT * FROM estate WHERE id = ?", id)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				c.Echo().Logger.Infof("postEstateRequestDocument estate id %v not found", id)
+				return c.NoContent(http.StatusNotFound)
+			}
+			c.Echo().Logger.Errorf("Database Execution error : %v", err)
+			return c.NoContent(http.StatusInternalServerError)
 		}
-		c.Logger().Errorf("postEstateRequestDocument DB execution error : %v", err)
-		return c.NoContent(http.StatusInternalServerError)
+		estatesCache.Set(string(id), estate, cache.NoExpiration)
 	}
 
 	return c.NoContent(http.StatusOK)
