@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	_ "net/http/pprof"
 
@@ -22,6 +23,8 @@ import (
 	"github.com/labstack/echo/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/newrelic/go-agent/v3/newrelic"
+	"github.com/patrickmn/go-cache"
+	"github.com/pkg/errors"
 )
 
 const Limit = 20
@@ -31,6 +34,10 @@ var db *sqlx.DB
 var mySQLConnectionData *MySQLConnectionEnv
 var chairSearchCondition ChairSearchCondition
 var estateSearchCondition EstateSearchCondition
+
+var (
+	estatesCache *cache.Cache
+)
 
 type InitializeResponse struct {
 	Language string `json:"language"`
@@ -262,6 +269,9 @@ func main() {
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+
+	// cache instance
+	estatesCache = cache.New(5*time.Minute, 10*time.Minute)
 
 	// TODO: REMOVE New Relic
 	e.Use(NewRelicWithApplication(*nrApp))
@@ -816,20 +826,35 @@ func searchEstates(c echo.Context) error {
 	return c.JSON(http.StatusOK, res)
 }
 
-func getLowPricedEstate(c echo.Context) error {
-	estates := make([]Estate, 0, Limit)
+func cacheLowPricedEstate(c *cache.Cache) ([]Estate, error) {
+	lowPricedEstates := make([]Estate, 0, Limit)
 	query := `SELECT * FROM estate ORDER BY rent ASC, id ASC LIMIT ?`
-	err := db.Select(&estates, query, Limit)
+	err := db.Select(&lowPricedEstates, query, Limit)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			c.Logger().Error("getLowPricedEstate not found")
+		return nil, errors.WithStack(err)
+	}
+	c.Set("lowpriced", lowPricedEstates, cache.NoExpiration)
+	return lowPricedEstates, nil
+}
+
+func getLowPricedEstate(c echo.Context) error {
+	var lowPricedEstates []Estate
+	if estatesCache != nil {
+		if x, found := estatesCache.Get("lowpriced"); found {
+			lowPricedEstates = x.([]Estate)
+		} else {
+			var err error
+			lowPricedEstates, err = cacheLowPricedEstate(estatesCache)
+			if err != nil {
+				return c.NoContent(http.StatusInternalServerError)
+			}
+		}
+		if len(lowPricedEstates) == 0 {
 			return c.JSON(http.StatusOK, EstateListResponse{[]Estate{}})
 		}
-		c.Logger().Errorf("getLowPricedEstate DB execution error : %v", err)
-		return c.NoContent(http.StatusInternalServerError)
+		return c.JSON(http.StatusOK, EstateListResponse{Estates: lowPricedEstates})
 	}
-
-	return c.JSON(http.StatusOK, EstateListResponse{Estates: estates})
+	return c.JSON(http.StatusOK, EstateListResponse{[]Estate{}})
 }
 
 func searchRecommendedEstateWithChair(c echo.Context) error {
