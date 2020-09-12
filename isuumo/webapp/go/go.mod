@@ -5,17 +5,21 @@ go 1.14
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
+	github.com/erikstmartin/go-testdb v0.0.0-20160219214506-8d10e4a1bae5 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/jmoiron/sqlx v1.2.0
+	github.com/kellydunn/golang-geo v0.7.0
+	github.com/kylelemons/go-gypsy v1.0.0 // indirect
 	github.com/labstack/echo v3.3.10+incompatible
 	github.com/labstack/gommon v0.3.0
 	github.com/mattn/go-colorable v0.1.6 // indirect
+	github.com/newrelic/go-agent/v3 v3.9.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/newrelic/go-agent/v3 v3.9.0
 	github.com/stretchr/testify v1.5.1
 	github.com/valyala/fasttemplate v1.1.0 // indirect
+	github.com/ziutek/mymysql v1.5.4 // indirect
 	golang.org/x/net v0.0.0-20200904194848-62affa334b73 // indirect
 	golang.org/x/sys v0.0.0-20200909081042-eff7692f9009 // indirect
 	golang.org/x/text v0.3.3 // indirect
