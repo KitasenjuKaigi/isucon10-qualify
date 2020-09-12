@@ -509,7 +509,7 @@ func searchChairs(c echo.Context) error {
 
 	if c.QueryParam("features") != "" {
 		for _, f := range strings.Split(c.QueryParam("features"), ",") {
-			conditions = append(conditions, "MATCH (features) AGAINST (?)")
+			conditions = append(conditions, "MATCH (features) AGAINST (? IN BOOLEAN MODE)")
 			params = append(params, f)
 		}
 	}
@@ -801,7 +801,7 @@ func searchEstates(c echo.Context) error {
 
 	if c.QueryParam("features") != "" {
 		for _, f := range strings.Split(c.QueryParam("features"), ",") {
-			conditions = append(conditions, "MATCH (features) AGAINST (?)")
+			conditions = append(conditions, "MATCH (features) AGAINST (? IN BOOLEAN MODE)")
 			params = append(params, f)
 		}
 	}
