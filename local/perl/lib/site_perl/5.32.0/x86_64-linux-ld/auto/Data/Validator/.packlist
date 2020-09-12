@@ -1,9 +1,0 @@
-/home/isucon/local/perl/lib/site_perl/5.32.0/Data/Validator.pm
-/home/isucon/local/perl/lib/site_perl/5.32.0/Data/Validator/Role/AllowExtra.pm
-/home/isucon/local/perl/lib/site_perl/5.32.0/Data/Validator/Role/Croak.pm
-/home/isucon/local/perl/lib/site_perl/5.32.0/Data/Validator/Role/Method.pm
-/home/isucon/local/perl/lib/site_perl/5.32.0/Data/Validator/Role/NoRestricted.pm
-/home/isucon/local/perl/lib/site_perl/5.32.0/Data/Validator/Role/NoThrow.pm
-/home/isucon/local/perl/lib/site_perl/5.32.0/Data/Validator/Role/Sequenced.pm
-/home/isucon/local/perl/lib/site_perl/5.32.0/Data/Validator/Role/SmartSequenced.pm
-/home/isucon/local/perl/lib/site_perl/5.32.0/Data/Validator/Role/StrictSequenced.pm
