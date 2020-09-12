@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	_ "net/http/pprof"
 
@@ -23,8 +22,6 @@ import (
 	"github.com/labstack/echo/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/patrickmn/go-cache"
-	"github.com/pkg/errors"
 )
 
 const Limit = 20
@@ -34,10 +31,6 @@ var db *sqlx.DB
 var mySQLConnectionData *MySQLConnectionEnv
 var chairSearchCondition ChairSearchCondition
 var estateSearchCondition EstateSearchCondition
-
-var (
-	estatesCache *cache.Cache
-)
 
 type InitializeResponse struct {
 	Language string `json:"language"`
@@ -270,9 +263,6 @@ func main() {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
-	// cache instance
-	estatesCache = cache.New(5*time.Minute, 10*time.Minute)
-
 	// TODO: REMOVE New Relic
 	e.Use(NewRelicWithApplication(*nrApp))
 
@@ -334,12 +324,6 @@ func initialize(c echo.Context) error {
 			c.Logger().Errorf("Initialize script error : %v", err)
 			return c.NoContent(http.StatusInternalServerError)
 		}
-	}
-
-	err := cacheLowPricedEstate(estatesCache)
-	if err != nil {
-		c.Logger().Errorf("cache estate error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
 	}
 
 	return c.JSON(http.StatusOK, InitializeResponse{
@@ -832,29 +816,20 @@ func searchEstates(c echo.Context) error {
 	return c.JSON(http.StatusOK, res)
 }
 
-func cacheLowPricedEstate(c *cache.Cache) error {
-	lowPricedEstates := make([]Estate, 0, Limit)
-	query := `SELECT * FROM estate ORDER BY rent ASC, id ASC LIMIT ?`
-	err := db.Select(&lowPricedEstates, query, Limit)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	c.Set("lowpriced", lowPricedEstates, cache.NoExpiration)
-	return nil
-}
-
 func getLowPricedEstate(c echo.Context) error {
-	var lowPricedEstates []Estate
-	if estatesCache != nil {
-		if x, found := estatesCache.Get("lowpriced"); found {
-			lowPricedEstates = x.([]Estate)
-		}
-		if len(lowPricedEstates) == 0 {
+	estates := make([]Estate, 0, Limit)
+	query := `SELECT * FROM estate ORDER BY rent ASC, id ASC LIMIT ?`
+	err := db.Select(&estates, query, Limit)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.Logger().Error("getLowPricedEstate not found")
 			return c.JSON(http.StatusOK, EstateListResponse{[]Estate{}})
 		}
-		return c.JSON(http.StatusOK, EstateListResponse{Estates: lowPricedEstates})
+		c.Logger().Errorf("getLowPricedEstate DB execution error : %v", err)
+		return c.NoContent(http.StatusInternalServerError)
 	}
-	return c.JSON(http.StatusOK, EstateListResponse{[]Estate{}})
+
+	return c.JSON(http.StatusOK, EstateListResponse{Estates: estates})
 }
 
 func searchRecommendedEstateWithChair(c echo.Context) error {
