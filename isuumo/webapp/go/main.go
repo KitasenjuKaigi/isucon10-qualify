@@ -18,6 +18,7 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/labstack/gommon/log"
+	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
 const Limit = 20
@@ -238,7 +239,15 @@ func init() {
 	json.Unmarshal(jsonText, &estateSearchCondition)
 }
 
+var nrApp *newrelic.Application
+
 func main() {
+	nrApp, _ = newrelic.NewApplication(
+		newrelic.ConfigAppName("isucon10-qualify"),
+		newrelic.ConfigLicense("2a6c3f87b82e0b1d0d9c6f8277dd294b39a8NRAL"),
+		newrelic.ConfigDistributedTracerEnabled(true),
+		newrelic.ConfigDebugLogger(os.Stdout),
+	)
 	// Echo instance
 	e := echo.New()
 	e.Debug = true
@@ -247,6 +256,9 @@ func main() {
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+
+	// TODO: REMOVE New Relic
+	e.Use(NewRelicWithApplication(*nrApp))
 
 	// Initialize
 	e.POST("/initialize", initialize)
@@ -976,4 +988,25 @@ func (cs Coordinates) coordinatesToText() string {
 		points = append(points, fmt.Sprintf("%f %f", c.Latitude, c.Longitude))
 	}
 	return fmt.Sprintf("'POLYGON((%s))'", strings.Join(points, ","))
+}
+
+// NewRelicWithApplication: see https://github.com/dafiti/echo-middleware/blob/master/newrelic.go
+func NewRelicWithApplication(app newrelic.Application) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			transactionName := fmt.Sprintf("%s [%s]", c.Path(), c.Request().Method)
+			txn := app.StartTransaction(transactionName)
+			defer txn.End()
+
+			c.Set("newrelic-txn", txn)
+
+			err := next(c)
+
+			if err != nil {
+				txn.NoticeError(err)
+			}
+
+			return err
+		}
+	}
 }
