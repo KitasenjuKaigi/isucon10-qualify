@@ -620,10 +620,8 @@ func getLowPricedChair(c echo.Context) error {
 	var lowPricedChairs []Chair
 	if chairsCache != nil {
 		if x, found := chairsCache.Get("lowpriced"); found {
-			fmt.Println("hit cache")
 			lowPricedChairs = x.([]Chair)
 		} else {
-			fmt.Println("no cache")
 			var err error
 			lowPricedChairs, err = cacheLowPricedChair(chairsCache)
 			if err != nil {
