@@ -14,6 +14,5 @@ RUN mkdir -p /run/nginx
 CMD nginx -g "daemon off;"
 
 # ドキュメントルート
-ADD app /app
 ADD www /www
 ADD default.conf /etc/nginx/conf.d/default.conf
